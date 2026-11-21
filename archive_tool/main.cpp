@@ -1,4 +1,3 @@
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <commdlg.h>
 #include <vector>
@@ -167,9 +166,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
     GetModuleFileNameA(nullptr, module, MAX_PATH);
     std::filesystem::path appPath(module);
     SetCurrentDirectoryA(appPath.parent_path().string().c_str());
-
-    INITCOMMONCONTROLSEX controls{ sizeof(controls), ICC_STANDARD_CLASSES };
-    InitCommonControlsEx(&controls);
 
     WNDCLASSEXA wc{};
     wc.cbSize = sizeof(wc);
