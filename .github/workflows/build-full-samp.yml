@@ -1,0 +1,81 @@
+name: Build Full SA-MP 0.2X
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "README.md"
+      - "archive_tool/**"
+      - ".github/workflows/build-archive-tool.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows components (Win32)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
+      - name: Build SA-MP components
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $solutions = @(
+            "saco/saco.sln",
+            "server/server.sln",
+            "announce/announce.sln",
+            "launch3/launch3.sln",
+            "rcon/rcon.sln",
+            "arctool2/arctool2.sln"
+          )
+
+          foreach ($solution in $solutions) {
+            Write-Host "::group::Building $solution"
+            msbuild $solution /m /t:Build /p:Configuration=Release /p:Platform=x86 /p:BuildProjectReferences=true /verbosity:minimal
+            if ($LASTEXITCODE -ne 0) {
+              throw "Build failed: $solution"
+            }
+            Write-Host "::endgroup::"
+          }
+
+      - name: Collect build outputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $components = @("saco", "server", "announce", "launch3", "rcon", "arctool2")
+          New-Item -ItemType Directory -Force -Path "dist" | Out-Null
+
+          foreach ($component in $components) {
+            $target = Join-Path "dist" $component
+            New-Item -ItemType Directory -Force -Path $target | Out-Null
+            $files = Get-ChildItem -Path $component -Recurse -File | Where-Object {
+              $_.FullName -match "[\\/]Release[\\/]" -and
+              $_.Extension -in @(".exe", ".dll", ".lib", ".pdb")
+            }
+            foreach ($file in $files) {
+              Copy-Item $file.FullName $target -Force
+            }
+            if (-not (Get-ChildItem -Path $target -File)) {
+              throw "No Release outputs were found for $component"
+            }
+          }
+
+          Copy-Item "saco/buildinfo.h" "dist/buildinfo.h"
+          Get-ChildItem dist -Recurse -File | Select-Object FullName,Length
+
+      - name: Upload complete Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: SA-MP-0.2X-Windows-x86
+          path: dist/
+          if-no-files-found: error
