@@ -1,0 +1,43 @@
+name: Build SAA2 Archive Tool
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "archive_tool/**"
+      - "arctool2/**"
+      - "saco/archive/**"
+      - "archive/pkey.bin"
+      - "archive/skey.bin"
+      - ".github/workflows/build-archive-tool.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
+      - name: Build archive-only GUI
+        shell: cmd
+        run: |
+          if not exist build mkdir build
+          cl /nologo /std:c++17 /EHsc /O2 /MT /DWIN32_LEAN_AND_MEAN /DARCTOOL /D_CRT_SECURE_NO_WARNINGS /I saco\archive archive_tool\main.cpp arctool2\ArchiveBuilder.cpp saco\archive\CryptoContext.cpp saco\archive\Hasher.cpp saco\archive\KeyPair.cpp saco\archive\Signer.cpp saco\archive\TinyEncrypt.cpp /link /SUBSYSTEM:WINDOWS Advapi32.lib Comdlg32.lib User32.lib Gdi32.lib /OUT:build\SAA2Builder.exe
+          if errorlevel 1 exit /b 1
+          copy archive\pkey.bin build\pkey.bin
+          copy archive\skey.bin build\skey.bin
+
+      - name: Upload standalone builder
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAA2Builder-Windows
+          path: build/
+          if-no-files-found: error
