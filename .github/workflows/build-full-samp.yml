@@ -26,10 +26,26 @@ jobs:
         with:
           arch: x86
 
+      - name: Install MFC build components
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products "*" -property installationPath
+          if (-not $vsPath) {
+            throw "Visual Studio installation was not found"
+          }
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
+          & $installer modify --installPath $vsPath --add Microsoft.VisualStudio.Component.VC.ATLMFC --quiet --wait --norestart
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to install the Visual C++ MFC component"
+          }
+
       - name: Build SA-MP components
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $env:CL = "/MP8"
           $solutions = @(
             "saco/saco.sln",
             "server/server.sln",
@@ -41,7 +57,7 @@ jobs:
 
           foreach ($solution in $solutions) {
             Write-Host "::group::Building $solution"
-            msbuild $solution /m /t:Build /p:Configuration=Release /p:Platform=x86 /p:BuildProjectReferences=true /verbosity:minimal
+            msbuild $solution /m:8 /t:Build /p:Configuration=Release /p:Platform=x86 /p:BuildProjectReferences=true /p:CL_MPCount=8 /verbosity:minimal
             if ($LASTEXITCODE -ne 0) {
               throw "Build failed: $solution"
             }
